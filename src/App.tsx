@@ -18,7 +18,7 @@ const App = () => {
   const [camera] = useState<PerspectiveCamera>(createCamera());
   const [scene, setScene] = useState(new Scene());
   const [branchNumber, setBranchNumber] = useState(6);
-  const [level, setLevel] = useState(2);
+  const [level, setLevel] = useState(3);
   const [control, setControl] = useState<OrbitControls|null>(null);
   const [myTree, setMyTree] = useState<Group|Mesh| null>(null);
 
@@ -44,7 +44,7 @@ const App = () => {
 
   const createBranchs = (depth: number, branchNumber: number, parentLength : number, radius: number): Group => {
 
-    if (depth == 0) {
+    if (depth <= 1) {
       const branch = new Group();
         const geometry = new CylinderGeometry(radius,radius * 1.2, parentLength, sigmentNumber);
         const material = new MeshBasicMaterial({ color: 0x00ff00 });
