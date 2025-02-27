@@ -46,8 +46,8 @@ const App = () => {
   )
   const [camera] = useState<PerspectiveCamera>(createCamera());
   const [scene, setScene] = useState(new Scene());
-  const [branchNumber, setBranchNumber] = useState(6);
-  const [level, setLevel] = useState(3);
+  const [branchNumber, setBranchNumber] = useState(1);
+  const [level, setLevel] = useState(1);
   const [control, setControl] = useState<OrbitControls|null>(null);
   const myTree = useRef<Group|Mesh| null>(null);
 
@@ -86,8 +86,10 @@ const App = () => {
       const branch = new Group();
         const cylinder = newCylinder(radius, parentLength, depth);
         branch.userData = {depth};
-        const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
-        cylinder.applyMatrix4(rotation);
+        if (depth !== level) {
+          const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
+          cylinder.applyMatrix4(rotation);
+        }
         branch.add(cylinder);
       return branch;
     }
@@ -105,7 +107,7 @@ const App = () => {
       child.applyMatrix4(translation); 
       parentGroup.add(child);
     }
-    if (level !== depth && depth !== 1) {
+    if (level !== depth) {
       const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
       parentGroup.applyMatrix4(rotation);
     }
@@ -148,7 +150,6 @@ const initScene = () => {
     }; 
 
    animate();
-   initScene();
    
   }, []);
 
@@ -156,15 +157,18 @@ const initScene = () => {
     //@ts-ignore
     const n = e.target?.value;
     setBranchNumber(n);
-    createTree(level, n);
+
   }
 
   const handleChangeDepth = (e: Event) =>{
     //@ts-ignore
     const n = e.target?.value;
     setLevel(n);
-    createTree(n, branchNumber);
   }
+
+  useEffect(() =>{
+    initScene();
+  }, [level, branchNumber])
 
   return (
     <div className="App">
