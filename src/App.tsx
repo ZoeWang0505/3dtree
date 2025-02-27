@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { AxesHelper, BoxGeometry, ConeGeometry, CylinderGeometry, GridHelper, Group, MathUtils, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { AxesHelper, BoxGeometry, ConeGeometry, CylinderGeometry, GridHelper, Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { createCamera } from './camera';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import Button from '@mui/material/Button';
 
 const radiusDefault: number = 0.2;
-
+const levelColor = [0x00ff00, 0xE44C64, 0x3950E6,0x3AE4E6,0xE63A3A,0xE6823A];
 const angle: number = 60;
 const branchLengthDefault = 20;
 const sigmentNumber = 32;
@@ -18,7 +19,7 @@ const App = () => {
   const [camera] = useState<PerspectiveCamera>(createCamera());
   const [scene, setScene] = useState(new Scene());
   const [branchNumber, setBranchNumber] = useState(6);
-  const [level, setLevel] = useState(3);
+  const [level, setLevel] = useState(5);
   const [control, setControl] = useState<OrbitControls|null>(null);
   const [myTree, setMyTree] = useState<Group|Mesh| null>(null);
 
@@ -42,74 +43,105 @@ const App = () => {
     return controls;
   }
 
+  const newCylinder= (radius:number, length:number, colorLevel: number) => {
+    const geometry = new CylinderGeometry(radius,radius * 1.2, length, sigmentNumber);
+    const material = new MeshBasicMaterial({ color: levelColor[colorLevel -1] });
+    const cylinder = new Mesh(geometry, material);
+    const translation = new Matrix4().makeTranslation(0, length/2, 0);
+    cylinder.applyMatrix4(translation);
+    return cylinder;
+  }
+
   const createBranchs = (depth: number, branchNumber: number, parentLength : number, radius: number): Group => {
 
     if (depth <= 1) {
       const branch = new Group();
-        const geometry = new CylinderGeometry(radius,radius * 1.2, parentLength, sigmentNumber);
-        const material = new MeshBasicMaterial({ color: 0x00ff00 });
-        const cone = new Mesh(geometry, material);
-        cone.position.y = parentLength /2;
-        branch.add(cone);
+        const cylinder = newCylinder(radius, parentLength, depth);
+        branch.userData = {depth};
+        const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(60));
+        cylinder.applyMatrix4(rotation);
+        branch.add(cylinder);
       return branch;
     }
 
     const childRadius = radius * 0.4;
-    
-    const childLength = parentLength / 2;
-    const parent = createBranchs(0, branchNumber, parentLength,radius);
+    const parentGroup = new Group();
+    const parent = newCylinder(radius, parentLength, depth);
+    parentGroup.add(parent);
     for (let i = branchNumber; i !== 0; i-=1) {
-      const child = createBranchs(depth - 1, branchNumber, childLength,childRadius);
-      child.rotation.x = MathUtils.degToRad(angle);  
-      child.position.y = parentLength / 6 * i;  
-      parent.add(child);
+      const child = createBranchs(depth - 1, branchNumber, parentLength /2,childRadius); 
+      const rotation = new Matrix4().makeRotationY(360 * Math.random());
+      child.applyMatrix4(rotation);
+
+      const translation = new Matrix4().makeTranslation(0, parentLength / branchNumber * i, 0);
+      child.applyMatrix4(translation); 
+      parentGroup.add(child);
     }
-    return parent;
+    if (level !== depth) {
+      const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(60));
+      parentGroup.applyMatrix4(rotation);
+    }
+
+    return parentGroup;
   }
 
 const initScene = () => {
-  scene.add(camera);
-  scene.add(newGridHelper());
-  scene.add(newAxesHelper());
-  setControl(newOrbitControl());
+  if (scene.children.length == 0) {
+    scene.add(camera);
+    scene.add(newGridHelper());
+    scene.add(newAxesHelper());
+    setControl(newOrbitControl());
+  } 
 
+  if (myTree !== null) {
+    myTree.removeFromParent();
+    // TODO: dispose
+  }
   const tree = createBranchs(level, branchNumber, branchLengthDefault, radiusDefault);
   setMyTree(tree);
   scene.add(tree);
-  camera.position.z = 5;
+  camera.position.z = 10;
 }
 
   useEffect(() => {
-   const onResize = () => {
+
     if (containerRef.current !== null) {
       camera.updateProjectionMatrix(); // automatically recalculate the frustrum
       rendererRef.current.setSize(window.innerWidth, window.innerHeight);
       rendererRef.current.setPixelRatio(window.devicePixelRatio);
       rendererRef.current.render(scene, camera);
     }
-   }
-   containerRef.current?.appendChild(rendererRef.current.domElement);
-   initScene();
-   onResize();
 
-   window.addEventListener('resize', onResize);
-
-
-
-  // Animation loop
-  const animate = () => {
-    requestAnimationFrame(animate);
-    rendererRef.current.render(scene, camera);
-  };
-  animate();
+  //  window.addEventListener('resize', onResize);
   // Clean up on component unmount
-  return () => {
-    containerRef.current?.removeChild(rendererRef.current.domElement);
-    };
+  // return () => {
+  //   containerRef.current?.removeChild(rendererRef.current.domElement);
+  //   };
   }, []);
+  
+  useEffect(() => {
+      initScene();
+  }, []);
+
+  useEffect(() => {
+    containerRef.current?.appendChild(rendererRef.current.domElement);
+      // Animation loop
+   const animate = () => {
+     requestAnimationFrame(animate);
+     rendererRef.current.render(scene, camera);
+   }; 
+   animate();
+  }, [])
+
+  const handleClick = () =>{
+    if (myTree !== null && myTree !== undefined) {
+      myTree.rotation.z += 0.01;
+    }
+  }
 
   return (
     <div className="App">
+      <Button variant="text" onClick={handleClick}>Play</Button>
       <div className="App-header" ref={containerRef}/>
     </div>
   );
