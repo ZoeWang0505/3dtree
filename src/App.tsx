@@ -4,6 +4,7 @@ import { AxesHelper, BoxGeometry, ConeGeometry, CylinderGeometry, GridHelper, Gr
 import { createCamera } from './camera';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import Button from '@mui/material/Button';
+import { Grid2, Slider } from '@mui/material';
 
 const radiusDefault: number = 0.2;
 const levelColor = [0x00ff00, 0xE44C64, 0x3950E6,0x3AE4E6,0xE63A3A,0xE6823A];
@@ -13,15 +14,42 @@ const sigmentNumber = 32;
 const App = () => {
   const containerRef = useRef<HTMLDivElement>(null); 
 
+  const levelMarks = [
+    {
+      value: 1,
+      label: '1',
+    },
+    {
+      value: 2,
+      label: '2',
+    },
+    {
+      value: 3,
+      label: '3',
+    },
+    {
+      value: 4,
+      label: '4',
+    },
+    {
+      value: 5,
+      label: '5',
+    },
+    {
+      value: 6,
+      label: '6',
+    },
+  ];
+
   const rendererRef = useRef<WebGLRenderer>(
     new WebGLRenderer({ antialias: true })
   )
   const [camera] = useState<PerspectiveCamera>(createCamera());
   const [scene, setScene] = useState(new Scene());
   const [branchNumber, setBranchNumber] = useState(6);
-  const [level, setLevel] = useState(5);
+  const [level, setLevel] = useState(3);
   const [control, setControl] = useState<OrbitControls|null>(null);
-  const [myTree, setMyTree] = useState<Group|Mesh| null>(null);
+  const myTree = useRef<Group|Mesh| null>(null);
 
   const newAxesHelper = () => {
     const helper = new AxesHelper(3);
@@ -58,7 +86,7 @@ const App = () => {
       const branch = new Group();
         const cylinder = newCylinder(radius, parentLength, depth);
         branch.userData = {depth};
-        const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(60));
+        const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
         cylinder.applyMatrix4(rotation);
         branch.add(cylinder);
       return branch;
@@ -69,22 +97,30 @@ const App = () => {
     const parent = newCylinder(radius, parentLength, depth);
     parentGroup.add(parent);
     for (let i = branchNumber; i !== 0; i-=1) {
-      const child = createBranchs(depth - 1, branchNumber, parentLength /2,childRadius); 
-      const rotation = new Matrix4().makeRotationY(360 * Math.random());
-      child.applyMatrix4(rotation);
+      const child = createBranchs(depth - 1, branchNumber, parentLength /3,childRadius); 
+      const rotationY = new Matrix4().makeRotationY(360 /branchNumber * i);
+      child.applyMatrix4(rotationY);
 
       const translation = new Matrix4().makeTranslation(0, parentLength / branchNumber * i, 0);
       child.applyMatrix4(translation); 
       parentGroup.add(child);
     }
-    if (level !== depth) {
-      const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(60));
+    if (level !== depth && depth !== 1) {
+      const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
       parentGroup.applyMatrix4(rotation);
     }
 
     return parentGroup;
   }
 
+const createTree = (level:number, branchNumber:number) => {
+  if (myTree.current !== null) {
+    myTree.current?.removeFromParent();
+    // TODO: dispose
+  }
+  myTree.current = createBranchs(level, branchNumber, branchLengthDefault, radiusDefault);
+  scene.add(myTree.current);
+}
 const initScene = () => {
   if (scene.children.length == 0) {
     scene.add(camera);
@@ -92,15 +128,7 @@ const initScene = () => {
     scene.add(newAxesHelper());
     setControl(newOrbitControl());
   } 
-
-  if (myTree !== null) {
-    myTree.removeFromParent();
-    // TODO: dispose
-  }
-  const tree = createBranchs(level, branchNumber, branchLengthDefault, radiusDefault);
-  setMyTree(tree);
-  scene.add(tree);
-  camera.position.z = 10;
+  createTree(level, branchNumber);
 }
 
   useEffect(() => {
@@ -111,38 +139,62 @@ const initScene = () => {
       rendererRef.current.setPixelRatio(window.devicePixelRatio);
       rendererRef.current.render(scene, camera);
     }
-
-  //  window.addEventListener('resize', onResize);
-  // Clean up on component unmount
-  // return () => {
-  //   containerRef.current?.removeChild(rendererRef.current.domElement);
-  //   };
-  }, []);
-  
-  useEffect(() => {
-      initScene();
-  }, []);
-
-  useEffect(() => {
     containerRef.current?.appendChild(rendererRef.current.domElement);
-      // Animation loop
-   const animate = () => {
-     requestAnimationFrame(animate);
-     rendererRef.current.render(scene, camera);
-   }; 
-   animate();
-  }, [])
 
-  const handleClick = () =>{
-    if (myTree !== null && myTree !== undefined) {
-      myTree.rotation.z += 0.01;
-    }
+      // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      rendererRef.current.render(scene, camera);
+    }; 
+
+   animate();
+   initScene();
+   
+  }, []);
+
+  const handleChangeBrancheNumber = (e: Event) =>{
+    //@ts-ignore
+    const n = e.target?.value;
+    setBranchNumber(n);
+    createTree(level, n);
+  }
+
+  const handleChangeDepth = (e: Event) =>{
+    //@ts-ignore
+    const n = e.target?.value;
+    setLevel(n);
+    createTree(n, branchNumber);
   }
 
   return (
     <div className="App">
-      <Button variant="text" onClick={handleClick}>Play</Button>
-      <div className="App-header" ref={containerRef}/>
+      <Grid2 container spacing={2}>
+        <Grid2 size={3}>
+            Depth
+            <Slider
+              aria-label="Restricted values"
+              defaultValue={level}
+              step={1}
+              min={1}
+              max={6}
+              valueLabelDisplay="auto"
+              marks={levelMarks}
+              onChange={handleChangeDepth}/>
+          </Grid2>
+      <Grid2 size={3}>
+        Number of branches
+        <Slider
+          aria-label="Restricted values"
+          defaultValue={branchNumber}
+          step={1}
+          min={1}
+          max={6}
+          valueLabelDisplay="auto"
+          marks={levelMarks}
+          onChange={handleChangeBrancheNumber}/>
+      </Grid2>
+    </Grid2>
+    <div className="App-header" ref={containerRef} />
     </div>
   );
 }
