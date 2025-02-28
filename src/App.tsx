@@ -139,7 +139,7 @@ const initScene = () => {
     if (containerRef.current !== null) {
       const box = containerRef.current?.getBoundingClientRect();
       camera.updateProjectionMatrix(); // automatically recalculate the frustrum
-      rendererRef.current.setSize(box.width, window.innerHeight -box.y);
+      rendererRef.current.setSize(box.width, box.height);
       rendererRef.current.setPixelRatio(box.width /box.height);
       rendererRef.current.render(scene, camera);
       containerRef.current?.appendChild(rendererRef.current.domElement);
@@ -182,10 +182,10 @@ const initScene = () => {
   }, [level, branchNumber])
 
   useEffect(() => {
-    const HighlightBranch = (highLight: boolean) => {
-      if (selectedObj.current !== null) {
+    const HighlightBranch = (obj: Group, highLight: boolean) => {
+      if (obj !== null) {
 
-        const mesh = selectedObj.current.children[0] as Mesh;
+        const mesh = obj.children[0] as Mesh;
         if (highLight) {
           //@ts-ignore
           mesh.material.color.set(0xFFDE59);
@@ -232,8 +232,8 @@ const initScene = () => {
       const box = containerRef.current?.getBoundingClientRect();
       if (box === undefined) return;
 
-      mouse.x = ((event.clientX - box?.x ) / box.width) * 2 - 1;
-      mouse.y = -((event.clientY - box?.y ) / window.innerHeight) * 2 + 1;
+      mouse.x = ((event.clientX - box.x) / box.width) * 2 - 1;
+      mouse.y = (-(event.clientY - box.y) / box.height) * 2 + 1;
 
       // Update the raycaster with the camera and mouse position
       raycaster.setFromCamera(mouse, camera);
@@ -241,21 +241,30 @@ const initScene = () => {
       // Get the objects intersected by the ray
       const intersects = raycaster.intersectObjects(scene.children);
 
-      // unselect the object
-      if (selectedObj.current !== null) {
-        //@ts-ignore
-        HighlightBranch(false);
-        selectedObj.current = null;
-      }
-
+      let newSelection = null;
       for (let i = 0; i < intersects.length; i++) {
         const object = getBranch(intersects[i].object as Group);
         if (object !== null) {
-          selectedObj.current = object;
-          HighlightBranch(true);
-          return;
+          newSelection = object;
+          break;
         }
       }
+
+        //@ts-ignore
+        if ( newSelection !== null) {
+            // unselect the object
+           if (selectedObj.current !== null && newSelection.uuid === selectedObj.current.uuid) {
+            console.log("same obj");
+            return;
+           } else {
+            HighlightBranch(selectedObj.current as Group, false);
+            HighlightBranch(newSelection, true);
+            selectedObj.current = newSelection;
+            return;
+          }
+        }
+        HighlightBranch(selectedObj.current as Group, false);
+        selectedObj.current = null;
     }
 
     containerRef.current?.addEventListener('mousemove', handleMove);
@@ -271,9 +280,17 @@ const initScene = () => {
 
   return (
     <Grid2 container direction="column" style={{ height: '100vh' }}>
-      <Grid2 container spacing={2} paddingLeft={2} 
+
+        <Box component={'div'}
+            ref={containerRef}
+            sx={{
+              height: '90vh',
+            }}
+          >
+        </Box>
+        <Grid2 container spacing={2} paddingLeft={2} 
         sx={{
-        height: '12vh',
+        height: '10vh',
         backgroundColor: 'lightgreen',
       }}>
         <Grid2 size={3}>
@@ -305,17 +322,6 @@ const initScene = () => {
           <Switch defaultChecked={addBranch} checked={addBranch} onClick={() => {setAddBranch(!addBranch)}}/>
         </Grid2>
       </Grid2>
-        <Box component={'div'}
-            ref={containerRef}
-            sx={{
-              height: '80vh',
-              backgroundColor: 'lightgreen',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-        </Box>
     </Grid2>
   );
 }
