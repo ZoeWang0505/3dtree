@@ -53,7 +53,9 @@ const App = () => {
   const myTree = useRef<Group|Mesh| null>(null);
   const [raycaster] = useState(new Raycaster());
   const [addBranch, setAddBranch] = useState(false);
+  const [animation, setAnimation] = useState(false);
   const selectedObj = useRef<Group|null>(null); 
+  const animateId = useRef<number>(null);
 
   const newAxesHelper = () => {
     const helper = new AxesHelper(3);
@@ -158,15 +160,37 @@ const initScene = () => {
       containerRef.current?.appendChild(rendererRef.current.domElement);
     }
 
+    const moveBranchs = (branch: Group) => {
+      if (branch === null) return;
+
+      branch.children.forEach((child) => {
+        if (child.type !== 'mesh') 
+          moveBranchs(child as Group);
+      })
+
+      const rotationY = new Matrix4().makeRotationY(MathUtils.degToRad(1));
+      branch.applyMatrix4(rotationY);
+    }
+
+
       // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
+      if (animation) {
+        animateId.current = requestAnimationFrame(animate);
+        moveBranchs(myTree.current as Group);
+      } else {
+        if ( animateId.current !== null) {
+          cancelAnimationFrame(animateId.current);
+          animateId.current = null;
+        }
+      }
       rendererRef.current.render(scene, camera);
     }; 
 
    animate();
    
-  }, []);
+  }, [animation]);
 
   useEffect(() => {
     if ( control !== null) {
@@ -282,7 +306,6 @@ const initScene = () => {
 
   return (
     <Grid2 container direction="column" style={{ height: '100vh' }}>
-
         <Box component={'div'}
             ref={containerRef}
             sx={{
@@ -290,7 +313,7 @@ const initScene = () => {
             }}
           >
         </Box>
-        <Grid2 container spacing={2} paddingLeft={2} 
+        <Grid2 container spacing={3} paddingLeft={2}  alignContent={'center'}
         sx={{
         height: '10vh',
         backgroundColor: 'lightgreen',
@@ -321,7 +344,17 @@ const initScene = () => {
         </Grid2> 
         <Grid2 size={3}>
           Add Branch
-          <Switch defaultChecked={addBranch} checked={addBranch} onClick={() => {setAddBranch(!addBranch)}}/>
+          <Switch 
+            defaultChecked={addBranch} 
+            checked={addBranch} 
+            onClick={() => {setAddBranch(!addBranch)}}/>
+        </Grid2>
+        <Grid2 size={3}>
+          <Button         
+           sx={{
+            backgroundColor: 'ButtonHighlight',
+          }}
+          onClick={() => {setAnimation(!animation)}}>Animation </Button>
         </Grid2>
       </Grid2>
     </Grid2>
