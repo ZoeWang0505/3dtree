@@ -10,6 +10,8 @@ const levelColor = [0x00ff00, 0xE44C64, 0x3950E6,0x3AE4E6,0xE63A3A,0xE6823A];
 const angle: number = 60;
 const branchLengthDefault = 20;
 const sigmentNumber = 32;
+const childLengthScale = 1/3;
+const childRadiusSacle = 1/3;
 const App = () => {
   const containerRef = useRef<HTMLDivElement>(null); 
 
@@ -80,12 +82,23 @@ const App = () => {
     return cylinder;
   }
 
+  const creatChildBranch = (depth: number, branchNumber: number, parentLength : number, radius: number) : Group | null => {
+    if ( depth === 1) return null;
+    const child = createBranchs(depth - 1, branchNumber, parentLength * childLengthScale,radius * childLengthScale); 
+    const rotationY = new Matrix4().makeRotationY(360 /branchNumber * Math.floor(Math.random() * branchNumber));
+    child.applyMatrix4(rotationY);
+
+    const translation = new Matrix4().makeTranslation(0, parentLength / branchNumber * Math.floor(Math.random() * branchNumber), 0);
+    child.applyMatrix4(translation); 
+    return child;
+  }
+
   const createBranchs = (depth: number, branchNumber: number, parentLength : number, radius: number): Group => {
 
     if (depth <= 1) {
       const branch = new Group();
         const cylinder = newCylinder(radius, parentLength, depth);
-        branch.userData = {depth};
+        branch.userData = {depth, parentLength, radius};
         if (depth !== level) {
           const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
           cylinder.applyMatrix4(rotation);
@@ -94,12 +107,12 @@ const App = () => {
       return branch;
     }
 
-    const childRadius = radius * 0.4;
+    const childRadius = radius * childRadiusSacle;
     const parentGroup = new Group();
     const parent = newCylinder(radius, parentLength, depth);
     parentGroup.add(parent);
     for (let i = branchNumber; i !== 0; i-=1) {
-      const child = createBranchs(depth - 1, branchNumber, parentLength /3,childRadius); 
+      const child = createBranchs(depth - 1, branchNumber, parentLength * childLengthScale,childRadius); 
       const rotationY = new Matrix4().makeRotationY(360 /branchNumber * i);
       child.applyMatrix4(rotationY);
 
@@ -112,7 +125,7 @@ const App = () => {
       parentGroup.applyMatrix4(rotation);
     }
 
-    parentGroup.userData = {depth};
+    parentGroup.userData = {depth, parentLength, radius};
     return parentGroup;
   }
 
@@ -205,24 +218,13 @@ const initScene = () => {
       return null;
     }
     const handleOnClick = (event: any) => {
-        // const mouse = new Vector2();
-        // // Convert mouse position to normalized device coordinates (-1 to +1)
-        // const box = containerRef.current?.getBoundingClientRect();
-        // if (box === undefined) return;
-
-        // mouse.x = ((event.clientX - box?.x ) / box.width) * 2 - 1;
-        // mouse.y = -((event.clientY - box?.y ) / window.innerHeight) * 2 + 1;
-
-        // // Update the raycaster with the camera and mouse position
-        // raycaster.setFromCamera(mouse, camera);
-
-        // // Get the objects intersected by the ray
-        // const intersects = raycaster.intersectObjects(scene.children);
-
-        // // Highlight the intersected objects
-        // for (let i = 0; i < intersects.length; i++) {
-        //     intersects[i].object.material.color.set(0xffff00);
-        // }
+      if (!addBranch || selectedObj.current === null) return;
+      
+      const {depth, parentLength, radius} = selectedObj.current.userData;
+      const branch = creatChildBranch(depth, branchNumber, parentLength, radius);
+      if ( branch !== null) {
+        selectedObj.current.add(branch);
+      }
     }
 
     const handleMove = (event: any) => {
