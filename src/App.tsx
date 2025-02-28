@@ -1,10 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, MouseEvent } from 'react';
 import './App.css';
-import { AxesHelper, BoxGeometry, ConeGeometry, CylinderGeometry, GridHelper, Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { AxesHelper, CylinderGeometry, GridHelper, Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
 import { createCamera } from './camera';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import Button from '@mui/material/Button';
-import { Grid2, Slider } from '@mui/material';
+import { Grid2, Slider, Button, Switch, Box } from '@mui/material';
 
 const radiusDefault: number = 0.2;
 const levelColor = [0x00ff00, 0xE44C64, 0x3950E6,0x3AE4E6,0xE63A3A,0xE6823A];
@@ -45,11 +44,14 @@ const App = () => {
     new WebGLRenderer({ antialias: true })
   )
   const [camera] = useState<PerspectiveCamera>(createCamera());
-  const [scene, setScene] = useState(new Scene());
-  const [branchNumber, setBranchNumber] = useState(1);
-  const [level, setLevel] = useState(1);
+  const [scene] = useState(new Scene());
+  const [branchNumber, setBranchNumber] = useState(6);
+  const [level, setLevel] = useState(3);
   const [control, setControl] = useState<OrbitControls|null>(null);
   const myTree = useRef<Group|Mesh| null>(null);
+  const [raycaster] = useState(new Raycaster());
+  const [addBranch, setAddBranch] = useState(false);
+  const selectedObj = useRef<Group|null>(null); 
 
   const newAxesHelper = () => {
     const helper = new AxesHelper(3);
@@ -66,8 +68,6 @@ const App = () => {
     controls.minDistance = 1;
     controls.maxDistance = 95;
     controls.enablePan = true;
-    // damping & auto rotation require the controls to be updated each frame
-    controls.enableDamping = true;
     return controls;
   }
 
@@ -112,6 +112,7 @@ const App = () => {
       parentGroup.applyMatrix4(rotation);
     }
 
+    parentGroup.userData = {depth};
     return parentGroup;
   }
 
@@ -136,12 +137,13 @@ const initScene = () => {
   useEffect(() => {
 
     if (containerRef.current !== null) {
+      const box = containerRef.current?.getBoundingClientRect();
       camera.updateProjectionMatrix(); // automatically recalculate the frustrum
-      rendererRef.current.setSize(window.innerWidth, window.innerHeight);
-      rendererRef.current.setPixelRatio(window.devicePixelRatio);
+      rendererRef.current.setSize(box.width, window.innerHeight -box.y);
+      rendererRef.current.setPixelRatio(box.width /box.height);
       rendererRef.current.render(scene, camera);
+      containerRef.current?.appendChild(rendererRef.current.domElement);
     }
-    containerRef.current?.appendChild(rendererRef.current.domElement);
 
       // Animation loop
     const animate = () => {
@@ -152,6 +154,15 @@ const initScene = () => {
    animate();
    
   }, []);
+
+  useEffect(() => {
+    if ( control !== null) {
+    if (!addBranch)
+        control.enableRotate = true;
+    else
+        control.enableRotate = false;
+    }
+  }, [addBranch, control])
 
   const handleChangeBrancheNumber = (e: Event) =>{
     //@ts-ignore
@@ -170,9 +181,101 @@ const initScene = () => {
     initScene();
   }, [level, branchNumber])
 
+  useEffect(() => {
+    const HighlightBranch = (highLight: boolean) => {
+      if (selectedObj.current !== null) {
+
+        const mesh = selectedObj.current.children[0] as Mesh;
+        if (highLight) {
+          //@ts-ignore
+          mesh.material.color.set(0xFFDE59);
+        } else {
+          //@ts-ignore
+          mesh.material.color.set(levelColor[selectedObj.current.userData.depth - 1]);
+        }
+      }
+    }
+    const getBranch = (object: Group|Mesh): any => {
+      if (object.userData.depth !== undefined) {
+        return object;
+      }
+      if (object.parent !== null && object.parent.type !== 'Scene') {
+        return getBranch(object.parent as Group);
+      }
+      return null;
+    }
+    const handleOnClick = (event: any) => {
+        // const mouse = new Vector2();
+        // // Convert mouse position to normalized device coordinates (-1 to +1)
+        // const box = containerRef.current?.getBoundingClientRect();
+        // if (box === undefined) return;
+
+        // mouse.x = ((event.clientX - box?.x ) / box.width) * 2 - 1;
+        // mouse.y = -((event.clientY - box?.y ) / window.innerHeight) * 2 + 1;
+
+        // // Update the raycaster with the camera and mouse position
+        // raycaster.setFromCamera(mouse, camera);
+
+        // // Get the objects intersected by the ray
+        // const intersects = raycaster.intersectObjects(scene.children);
+
+        // // Highlight the intersected objects
+        // for (let i = 0; i < intersects.length; i++) {
+        //     intersects[i].object.material.color.set(0xffff00);
+        // }
+    }
+
+    const handleMove = (event: any) => {
+      if (!addBranch) return;
+      const mouse = new Vector2();
+      // Convert mouse position to normalized device coordinates (-1 to +1)
+      const box = containerRef.current?.getBoundingClientRect();
+      if (box === undefined) return;
+
+      mouse.x = ((event.clientX - box?.x ) / box.width) * 2 - 1;
+      mouse.y = -((event.clientY - box?.y ) / window.innerHeight) * 2 + 1;
+
+      // Update the raycaster with the camera and mouse position
+      raycaster.setFromCamera(mouse, camera);
+
+      // Get the objects intersected by the ray
+      const intersects = raycaster.intersectObjects(scene.children);
+
+      // unselect the object
+      if (selectedObj.current !== null) {
+        //@ts-ignore
+        HighlightBranch(false);
+        selectedObj.current = null;
+      }
+
+      for (let i = 0; i < intersects.length; i++) {
+        const object = getBranch(intersects[i].object as Group);
+        if (object !== null) {
+          selectedObj.current = object;
+          HighlightBranch(true);
+          return;
+        }
+      }
+    }
+
+    containerRef.current?.addEventListener('mousemove', handleMove);
+    containerRef.current?.addEventListener('mousedown', handleOnClick);
+
+    return () => {
+      containerRef.current?.removeEventListener('mousemove', handleMove);
+      containerRef.current?.removeEventListener('mousedown', handleOnClick);
+    }
+
+  }, [addBranch])
+
+
   return (
-    <div className="App">
-      <Grid2 container spacing={2}>
+    <Grid2 container direction="column" style={{ height: '100vh' }}>
+      <Grid2 container spacing={2} paddingLeft={2} 
+        sx={{
+        height: '12vh',
+        backgroundColor: 'lightgreen',
+      }}>
         <Grid2 size={3}>
             Depth
             <Slider
@@ -184,22 +287,36 @@ const initScene = () => {
               valueLabelDisplay="auto"
               marks={levelMarks}
               onChange={handleChangeDepth}/>
-          </Grid2>
-      <Grid2 size={3}>
-        Number of branches
-        <Slider
-          aria-label="Restricted values"
-          defaultValue={branchNumber}
-          step={1}
-          min={1}
-          max={6}
-          valueLabelDisplay="auto"
-          marks={levelMarks}
-          onChange={handleChangeBrancheNumber}/>
+        </Grid2>
+        <Grid2 size={3}>
+          Number of branches
+          <Slider
+            aria-label="Restricted values"
+            defaultValue={branchNumber}
+            step={1}
+            min={1}
+            max={6}
+            valueLabelDisplay="auto"
+            marks={levelMarks}
+            onChange={handleChangeBrancheNumber}/>
+        </Grid2> 
+        <Grid2 size={3}>
+          Add Branch
+          <Switch defaultChecked={addBranch} checked={addBranch} onClick={() => {setAddBranch(!addBranch)}}/>
+        </Grid2>
       </Grid2>
+        <Box component={'div'}
+            ref={containerRef}
+            sx={{
+              height: '80vh',
+              backgroundColor: 'lightgreen',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+        </Box>
     </Grid2>
-    <div className="App-header" ref={containerRef} />
-    </div>
   );
 }
 
