@@ -344,7 +344,7 @@ const App = () => {
             Depth
             <Slider
               aria-label="Restricted values"
-              defaultValue={level}
+              value={level}
               step={1}
               min={1}
               max={6}
@@ -356,7 +356,7 @@ const App = () => {
           Number of branches
           <Slider
             aria-label="Restricted values"
-            defaultValue={branchNumber}
+            value={branchNumber}
             step={1}
             min={1}
             max={6}
