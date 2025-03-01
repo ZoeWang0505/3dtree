@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { CylinderGeometry, Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
+import { CylinderGeometry, Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { createCamera } from './camera';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { Grid2, Slider, Button, Switch, Box } from '@mui/material';
@@ -44,14 +44,21 @@ const App = () => {
   )
   const [camera] = useState<PerspectiveCamera>(createCamera());
   const [scene] = useState(new Scene());
+  const [control, setControl] = useState<OrbitControls|null>(null);
+  const [raycaster] = useState(new Raycaster());
+  const myTree = useRef<Group|Mesh| null>(null);
+
+  //Task1
   const [branchNumber, setBranchNumber] = useState(6);
   const [level, setLevel] = useState(3);
-  const [control, setControl] = useState<OrbitControls|null>(null);
-  const myTree = useRef<Group|Mesh| null>(null);
-  const [raycaster] = useState(new Raycaster());
+
+  //task2
   const [addBranch, setAddBranch] = useState(false);
-  const [animation, setAnimation] = useState(false);
   const selectedObj = useRef<Group|null>(null); 
+  const hitPoint = useRef<Vector3|null>(null);
+
+  //Task3
+  const [animation, setAnimation] = useState(false);
   const animateId = useRef<number>(null);
 
   /**
@@ -98,7 +105,6 @@ const App = () => {
       }
       return branch;
     }
-  
   
     const creatChildBranch = (depth: number, branchNumber: number, parentLength : number, radius: number, order: number = -1) : Group | null => {
       const child = createBranchs(depth - 1, branchNumber, parentLength * childLengthScale,radius * childLengthScale); 
@@ -154,12 +160,12 @@ const App = () => {
       setControl(newOrbitControl(camera, rendererRef.current.domElement));
     } 
 
-    const createTree = (level:number, branchNumber:number) => {
+    const createTree = (depth:number, branchNumber:number) => {
       if (myTree.current !== null) {
         myTree.current?.removeFromParent();
         // TODO: dispose
       }
-      myTree.current = createBranchs(level, branchNumber, branchLengthDefault, radiusDefault);
+      myTree.current = createBranchs(depth, branchNumber, branchLengthDefault, radiusDefault);
       scene.add(myTree.current);
     }
     createTree(level, branchNumber);
@@ -201,8 +207,22 @@ const App = () => {
       
       const {depth, length, radius} = selectedObj.current.userData;
       if (depth > 1) {
-        const branch = creatChildBranch(depth, branchNumber, length,radius); 
-        if ( branch !== null) {
+        const branch = creatChildBranch(depth, branchNumber, length,radius,0); 
+        if ( branch !== null && hitPoint.current !== null) {
+          // Make the object look at the hit point
+          const zAxis = new Vector3(0, 0, 1);
+          const hitProjection =  new Vector3(hitPoint.current.x, 0, hitPoint.current.z);
+          // Calculate the angle between the point and the Z-axis
+          const angle = hitProjection.angleTo(zAxis);
+
+          // Convert the angle from radians to degrees if needed
+          const angleInDegrees = MathUtils.radToDeg(angle);
+          const rotation = new Matrix4().makeRotationY(angleInDegrees);
+          branch.applyMatrix4(rotation);
+
+          const translation = new Matrix4().makeTranslation(0, hitPoint.current?.y, 0);
+          branch.applyMatrix4(translation); 
+          
           selectedObj.current.add(branch);
         }
       }
@@ -229,6 +249,8 @@ const App = () => {
         const object = getBranch(intersects[i].object as Group);
         if (object !== null) {
           newSelection = object;
+          const localPoint = intersects[i].point.clone();
+          hitPoint.current = newSelection.worldToLocal(localPoint);
           break;
         }
       }
@@ -237,7 +259,6 @@ const App = () => {
         if ( newSelection !== null) {
             // unselect the object
            if (selectedObj.current !== null && newSelection.uuid === selectedObj.current.uuid) {
-            console.log("same obj");
             return;
            } else {
             HighlightBranch(selectedObj.current as Group, false);
