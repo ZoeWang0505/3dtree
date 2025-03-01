@@ -1,17 +1,14 @@
-import { useEffect, useRef, useState, MouseEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { AxesHelper, CylinderGeometry, GridHelper, Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
+import { CylinderGeometry, Group, MathUtils, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer } from 'three';
 import { createCamera } from './camera';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { Grid2, Slider, Button, Switch, Box } from '@mui/material';
+import { newAxesHelper, newGridHelper } from './helper';
+import newOrbitControl from './control';
+import { branchLengthDefault, childLengthScale, childRadiusSacle, levelColor, radiusDefault, sigmentNumber } from './constants';
 
-const radiusDefault: number = 0.2;
-const levelColor = [0x00ff00, 0xE44C64, 0x3950E6,0x3AE4E6,0xE63A3A,0xE6823A];
-const angle: number = 60;
-const branchLengthDefault = 20;
-const sigmentNumber = 32;
-const childLengthScale = 1/3;
-const childRadiusSacle = 1/3;
+
 const App = () => {
   const containerRef = useRef<HTMLDivElement>(null); 
 
@@ -57,83 +54,6 @@ const App = () => {
   const selectedObj = useRef<Group|null>(null); 
   const animateId = useRef<number>(null);
 
-  const newAxesHelper = () => {
-    const helper = new AxesHelper(3);
-    helper.position.set(-3.5, 0, -3.5);
-    return helper;
-  }
-  const newGridHelper = () => {
-    const helper = new GridHelper(6);
-    return helper;
-  }
-
-  const newOrbitControl = (): OrbitControls =>{
-    const controls = new OrbitControls(camera, rendererRef.current.domElement);
-    controls.minDistance = 1;
-    controls.maxDistance = 95;
-    controls.enablePan = true;
-    return controls;
-  }
-
-  const newCylinder= (radius:number, length:number, colorLevel: number) => {
-    const geometry = new CylinderGeometry(radius,radius * 1.2, length, sigmentNumber);
-    const material = new MeshBasicMaterial({ color: levelColor[colorLevel -1] });
-    const cylinder = new Mesh(geometry, material);
-    const translation = new Matrix4().makeTranslation(0, length/2, 0);
-    cylinder.applyMatrix4(translation);
-    return cylinder;
-  }
-
-  const creatChildBranch = (depth: number, branchNumber: number, parentLength : number, radius: number) : Group | null => {
-    if ( depth === 1) return null;
-    const child = createBranchs(depth - 1, branchNumber, parentLength * childLengthScale,radius * childLengthScale); 
-    const rotationY = new Matrix4().makeRotationY(360 /branchNumber * Math.floor(Math.random() * branchNumber));
-    child.applyMatrix4(rotationY);
-
-    const translation = new Matrix4().makeTranslation(0, parentLength / branchNumber * Math.floor(Math.random() * branchNumber), 0);
-    child.applyMatrix4(translation); 
-    return child;
-  }
-
-  const createBranchs = (depth: number, branchNumber: number, parentLength : number, radius: number): Group => {
-
-    if (depth <= 1) {
-      const branch = new Group();
-        const cylinder = newCylinder(radius, parentLength, depth);
-        branch.userData = {depth, parentLength, radius};
-        if (depth !== level) {
-          const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
-          cylinder.applyMatrix4(rotation);
-        }
-        branch.add(cylinder);
-      return branch;
-    }
-
-    const childRadius = radius * childRadiusSacle;
-    const parentGroup = new Group();
-    const parent = newCylinder(radius, parentLength, depth);
-    parentGroup.add(parent);
-    for (let i = branchNumber; i !== 0; i-=1) {
-      const child = createBranchs(depth - 1, branchNumber, parentLength * childLengthScale,childRadius); 
-      const rotationY = new Matrix4().makeRotationY(360 /branchNumber * i);
-      child.applyMatrix4(rotationY);
-
-      const translation = new Matrix4().makeTranslation(0, parentLength / branchNumber * i, 0);
-      child.applyMatrix4(translation); 
-      parentGroup.add(child);
-    }
-    if (level !== depth) {
-      const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
-      parentGroup.applyMatrix4(rotation);
-    }
-
-    parentGroup.userData = {depth, parentLength, radius};
-    return parentGroup;
-  }
-
-
-
-
   /**
    * Initialize fr the canvas
    */
@@ -158,49 +78,49 @@ const App = () => {
    
   }, []);
 
-  /**
-   * for making animation
-   */
-  useEffect( () => {
-    const moveBranchs = (branch: Group) => {
-      if (branch === null) return;
 
-      branch.children.forEach((child) => {
-        if (child.type !== 'mesh') 
-          moveBranchs(child as Group);
-      })
-
-      const rotationY = new Matrix4().makeRotationY(MathUtils.degToRad(1));
-      branch.applyMatrix4(rotationY);
-    }
-
-    const play = () => {
-      animateId.current = requestAnimationFrame(play);
-      moveBranchs(myTree.current as Group);
-    }
-
-    const stop = () => {
-      if ( animateId.current !== null) {
-        cancelAnimationFrame(animateId.current);
-        animateId.current = null;
+    //recursion functions for creating branches
+  
+    const createRootBranch = (depth: number, length: number, radius: number): Group => {
+      const branch = new Group();
+  
+      const geometry = new CylinderGeometry(radius,radius * 1.2, length, sigmentNumber);
+      const material = new MeshBasicMaterial({ color: levelColor[depth -1] });
+      const cylinder = new Mesh(geometry, material);
+      const translation = new Matrix4().makeTranslation(0, length/2, 0);
+      cylinder.applyMatrix4(translation);
+  
+      branch.add(cylinder);
+      branch.userData = {depth, length, radius};
+      if (level !== depth) {
+        const rotation = new Matrix4().makeRotationX(MathUtils.degToRad(30));
+        branch.applyMatrix4(rotation);
       }
+      return branch;
     }
-
-    if (animation) {
-      play();
-    } else {
-      stop();
+  
+  
+    const creatChildBranch = (depth: number, branchNumber: number, parentLength : number, radius: number, order: number = -1) : Group | null => {
+      const child = createBranchs(depth - 1, branchNumber, parentLength * childLengthScale,radius * childLengthScale); 
+      const rotationY = new Matrix4().makeRotationY(360 /branchNumber * (order == -1 ? Math.floor(Math.random() * branchNumber): order));
+      child.applyMatrix4(rotationY);
+  
+      const translation = new Matrix4().makeTranslation(0, parentLength / branchNumber * (order == -1 ? Math.floor(Math.random() * branchNumber): order), 0);
+      child.applyMatrix4(translation); 
+      return child;
     }
-  }, [animation])
-
-  useEffect(() => {
-    if ( control !== null) {
-    if (!addBranch)
-        control.enableRotate = true;
-    else
-        control.enableRotate = false;
+  
+    const createBranchs = (depth: number, branchNumber: number, parentLength : number, radius: number): Group => {
+      const root = createRootBranch(depth, parentLength, radius);
+      if (depth > 1) {
+        for (let i = branchNumber; i !== 0; i-=1) {
+          const child = creatChildBranch(depth, branchNumber, parentLength, radius, i);
+          if (child !== null)
+            root.add(child);
+        }
+      }
+      return root;
     }
-  }, [addBranch, control])
 
 
   /**
@@ -222,8 +142,17 @@ const App = () => {
     setLevel(n);
   }
 
-  /**when depth or branch number changed, regenerate the branches */
+  /**Task1: create tree by given depth and number of branch
+   * when depth or branch number changed, regenerate the branches 
+   */
   useEffect(() =>{
+
+    if (scene.children.length == 0) {
+      scene.add(camera);
+      scene.add(newGridHelper());
+      scene.add(newAxesHelper());
+      setControl(newOrbitControl(camera, rendererRef.current.domElement));
+    } 
 
     const createTree = (level:number, branchNumber:number) => {
       if (myTree.current !== null) {
@@ -233,21 +162,13 @@ const App = () => {
       myTree.current = createBranchs(level, branchNumber, branchLengthDefault, radiusDefault);
       scene.add(myTree.current);
     }
-    const initScene = () => {
-      if (scene.children.length == 0) {
-        scene.add(camera);
-        scene.add(newGridHelper());
-        scene.add(newAxesHelper());
-        setControl(newOrbitControl());
-      } 
-      createTree(level, branchNumber);
-    }
+    createTree(level, branchNumber);
 
-    initScene();
   }, [level, branchNumber])
 
 
   /**
+   * Task2: add branch on a parent branch
    * Hover on a branch, it will be highlighted
    * Click on the branch, a new child branch will be added to it
    */
@@ -274,13 +195,16 @@ const App = () => {
       }
       return null;
     }
+
     const handleOnClick = (event: any) => {
       if (!addBranch || selectedObj.current === null) return;
       
-      const {depth, parentLength, radius} = selectedObj.current.userData;
-      const branch = creatChildBranch(depth, branchNumber, parentLength, radius);
-      if ( branch !== null) {
-        selectedObj.current.add(branch);
+      const {depth, length, radius} = selectedObj.current.userData;
+      if (depth > 1) {
+        const branch = creatChildBranch(depth, branchNumber, length,radius); 
+        if ( branch !== null) {
+          selectedObj.current.add(branch);
+        }
       }
     }
 
@@ -336,6 +260,50 @@ const App = () => {
 
   }, [addBranch])
 
+
+  /**
+   * task3: for making animation
+   */
+  useEffect( () => {
+    const moveBranchs = (branch: Group) => {
+      if (branch === null) return;
+
+      branch.children.forEach((child) => {
+        if (child.type !== 'mesh') 
+          moveBranchs(child as Group);
+      })
+
+      const rotationY = new Matrix4().makeRotationY(MathUtils.degToRad(1));
+      branch.applyMatrix4(rotationY);
+    }
+
+    const play = () => {
+      animateId.current = requestAnimationFrame(play);
+      moveBranchs(myTree.current as Group);
+    }
+
+    const stop = () => {
+      if ( animateId.current !== null) {
+        cancelAnimationFrame(animateId.current);
+        animateId.current = null;
+      }
+    }
+
+    if (animation) {
+      play();
+    } else {
+      stop();
+    }
+  }, [animation])
+
+  useEffect(() => {
+    if ( control !== null) {
+    if (!addBranch)
+        control.enableRotate = true;
+    else
+        control.enableRotate = false;
+    }
+  }, [addBranch, control])
 
   return (
     <Grid2 container direction="column" style={{ height: '100vh' }}>

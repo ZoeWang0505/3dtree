@@ -8,7 +8,7 @@ const createCamera = (): PerspectiveCamera => {
     200 // far clipping plane
   );
 
-  camera.position.set(0, 4, 35);
+  camera.position.set(-20, 30, 80);
 
   return camera;
 }
