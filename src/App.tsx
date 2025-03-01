@@ -160,6 +160,17 @@ const initScene = () => {
       containerRef.current?.appendChild(rendererRef.current.domElement);
     }
 
+      // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      rendererRef.current.render(scene, camera);
+    }; 
+
+   animate();
+   
+  }, []);
+
+  useEffect( () => {
     const moveBranchs = (branch: Group) => {
       if (branch === null) return;
 
@@ -173,24 +184,24 @@ const initScene = () => {
     }
 
 
-      // Animation loop
-    const animate = () => {
-      requestAnimationFrame(animate);
-      if (animation) {
-        animateId.current = requestAnimationFrame(animate);
-        moveBranchs(myTree.current as Group);
-      } else {
-        if ( animateId.current !== null) {
-          cancelAnimationFrame(animateId.current);
-          animateId.current = null;
-        }
-      }
-      rendererRef.current.render(scene, camera);
-    }; 
+    const play = () => {
+      animateId.current = requestAnimationFrame(play);
+      moveBranchs(myTree.current as Group);
+    }
 
-   animate();
-   
-  }, [animation]);
+    const stop = () => {
+      if ( animateId.current !== null) {
+        cancelAnimationFrame(animateId.current);
+        animateId.current = null;
+      }
+    }
+
+    if (animation) {
+      play();
+    } else {
+      stop();
+    }
+  }, [animation])
 
   useEffect(() => {
     if ( control !== null) {
@@ -354,7 +365,7 @@ const initScene = () => {
            sx={{
             backgroundColor: 'ButtonHighlight',
           }}
-          onClick={() => {setAnimation(!animation)}}>Animation </Button>
+          onClick={() => {setAnimation(!animation)}}>{animation?"Stop": "Play" } </Button>
         </Grid2>
       </Grid2>
     </Grid2>
