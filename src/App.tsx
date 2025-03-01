@@ -131,24 +131,12 @@ const App = () => {
     return parentGroup;
   }
 
-const createTree = (level:number, branchNumber:number) => {
-  if (myTree.current !== null) {
-    myTree.current?.removeFromParent();
-    // TODO: dispose
-  }
-  myTree.current = createBranchs(level, branchNumber, branchLengthDefault, radiusDefault);
-  scene.add(myTree.current);
-}
-const initScene = () => {
-  if (scene.children.length == 0) {
-    scene.add(camera);
-    scene.add(newGridHelper());
-    scene.add(newAxesHelper());
-    setControl(newOrbitControl());
-  } 
-  createTree(level, branchNumber);
-}
 
+
+
+  /**
+   * Initialize fr the canvas
+   */
   useEffect(() => {
 
     if (containerRef.current !== null) {
@@ -170,6 +158,9 @@ const initScene = () => {
    
   }, []);
 
+  /**
+   * for making animation
+   */
   useEffect( () => {
     const moveBranchs = (branch: Group) => {
       if (branch === null) return;
@@ -182,7 +173,6 @@ const initScene = () => {
       const rotationY = new Matrix4().makeRotationY(MathUtils.degToRad(1));
       branch.applyMatrix4(rotationY);
     }
-
 
     const play = () => {
       animateId.current = requestAnimationFrame(play);
@@ -212,6 +202,10 @@ const initScene = () => {
     }
   }, [addBranch, control])
 
+
+  /**
+   * changing branch number
+   */
   const handleChangeBrancheNumber = (e: Event) =>{
     //@ts-ignore
     const n = e.target?.value;
@@ -219,16 +213,44 @@ const initScene = () => {
 
   }
 
+  /**
+   * changing depth number
+   */
   const handleChangeDepth = (e: Event) =>{
     //@ts-ignore
     const n = e.target?.value;
     setLevel(n);
   }
 
+  /**when depth or branch number changed, regenerate the branches */
   useEffect(() =>{
+
+    const createTree = (level:number, branchNumber:number) => {
+      if (myTree.current !== null) {
+        myTree.current?.removeFromParent();
+        // TODO: dispose
+      }
+      myTree.current = createBranchs(level, branchNumber, branchLengthDefault, radiusDefault);
+      scene.add(myTree.current);
+    }
+    const initScene = () => {
+      if (scene.children.length == 0) {
+        scene.add(camera);
+        scene.add(newGridHelper());
+        scene.add(newAxesHelper());
+        setControl(newOrbitControl());
+      } 
+      createTree(level, branchNumber);
+    }
+
     initScene();
   }, [level, branchNumber])
 
+
+  /**
+   * Hover on a branch, it will be highlighted
+   * Click on the branch, a new child branch will be added to it
+   */
   useEffect(() => {
     const HighlightBranch = (obj: Group, highLight: boolean) => {
       if (obj !== null) {
